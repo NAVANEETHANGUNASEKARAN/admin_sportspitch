@@ -1,74 +1,77 @@
 # SportsPitch Admin Portal
 
-Mobile-first admin portal for SportsPitch, built with React + TypeScript +
-Vite + Tailwind CSS + shadcn/ui-style primitives + lucide-react icons.
+Mobile-first admin portal for SportsPitch, connected to the live SportsPitch
+backend (Node/Express + MongoDB). No mock data remains -- every module reads
+and writes through the real API.
 
-## Run it
+## Setup
 
+```
 npm install
+cp .env.example .env   # points at the live Render API by default
 npm run dev
+```
 
-## Architecture
+## Login
 
-- `src/components/ui` - shadcn-style primitives (Button, Badge, Card, Input,
-  Select, Sheet). Copy-in-your-repo style, not an npm dependency, so they're
-  fully yours to restyle.
-- `src/components/layout` - AppShell (header + routed content) and
-  BottomNav (5-tab mobile navigation: Home, Bookings, Payments, Players,
-  More).
-- `src/features/<module>` - one folder per admin module (dashboard,
-  bookings, payments, players, more). Each screen and its sub-components
-  live together so a module can be extended or removed without touching
-  others.
-- `src/hooks/useAppData.ts` - single React context holding bookings and
-  players in memory. Every screen reads/writes through this context, so
-  swapping the mock state for real API calls (e.g. React Query + your
-  backend) only means editing this one file's provider - no screen changes.
-- `src/hooks/useReminderQueue.ts` - drives the "Remind all due" one-by-one
-  WhatsApp flow.
-- `src/lib/whatsapp.ts` - builds wa.me deep links and message text for
-  booking approve/reject and payment reminders.
-- `src/data/mockData.ts` - placeholder bookings/players. Replace with API
-  calls when the backend is ready; shapes are defined in `src/types`.
+Reuses the exact credentials the existing admin-panel-new already used
+(there is no backend auth endpoint to call):
 
-## Important note on WhatsApp automation
+- Username: `sportspitch`
+- Password: `new2580` (changeable from Profile -> Change password; stored
+  locally, same trust model as the original)
 
-Every "automatic" WhatsApp message in this build opens a pre-filled wa.me
-chat that the admin sends with one tap inside WhatsApp - this is free and
-needs no setup. WhatsApp does not allow a website to send a message with
-zero human interaction. If you later want messages to go out with no tap
-at all (e.g. triggered straight from your backend when a booking is
-approved), that requires the WhatsApp Business API through a provider like
-Meta Cloud API, Gupshup, or Twilio, which has setup and per-message cost.
+## Admin PIN
 
-## Admin PIN and critical actions
+Default `0000`, now persisted server-side in the new `Settings` collection
+(`/api/settings`). Required to delete a player, edit a payment, or save any
+Settings tab. Change it from Settings -> Security.
 
-`src/hooks/usePinGate.tsx` provides one global `requestPin(onSuccess)` used
-everywhere a critical action needs authentication: deleting a player,
-editing a payment, saving any Settings section, and changing the PIN
-itself. Default PIN is `0000`, stored in `settings.adminPin` in
-`useAppData` and changeable from Settings -> Security. This is in-memory
-only (matches the rest of the mock state) -- wire it to your real backend
-auth when you connect the API.
+## What's wired to real data
 
-## New modules added
+Every module (Dashboard, Bookings, Players, Payments, Sports management
+[sport fees only], Reports, Announcements, Settings, Profile) reads from
+and writes to the live backend at `VITE_API_URL` (defaults to
+`https://sports-pitch-2-ootl.onrender.com`). See `src/lib/api/` for one
+file per domain -- that's the complete list of endpoints this app calls.
 
-- **Player profile** (`features/players/PlayerProfileSheet.tsx`) - tapping
-  a player row (not the delete icon) opens a full profile with photo
-  placeholder, membership type, join date, attendance, and Edit/Delete
-  actions. Delete is PIN-gated and then asks for confirmation.
-- **Payments View/Edit** (`features/payments/PaymentViewSheet.tsx`,
-  `PaymentEditSheet.tsx`) - View is open to everyone; Edit is PIN-gated
-  and lets the admin change status (including the new "Partially paid"
-  state), amount paid, balance, payment date, and notes.
-- **Sports management, Reports, Announcements, Settings, Profile** - all
-  live under `features/<module>` and are reachable from the More menu.
-  Reports' Export Excel downloads a CSV (opens fine in Excel); Export PDF
-  uses the browser's print-to-PDF via `window.print()` to avoid pulling in
-  a heavy PDF library for a v1.
+Coach management, Court availability, and Attendance were built in an
+earlier pass and have been removed (backend models/routes and frontend
+pages both deleted) -- postponed to a future version per product decision.
 
-## Adding future modules (Attendance, QR check-in, Coach/Staff mgmt, etc.)
+## Known product-level decisions baked into this integration
 
-Add a new folder under `src/features`, a route in `App.tsx`, and a list
-item in `MorePage.tsx` (or promote it to the bottom nav if it becomes a
-daily task). Nothing else needs to change.
+- **Sports** are the fixed backend enum: Cricket, Badminton, Karate, Kabaddi.
+- **One sport per player** (backend technically supports an array; this UI
+  only ever sends/reads a single value, per your instruction).
+- **Overdue / Due soon** are computed client-side from a due-day rule since
+  the backend has no due-date field -- see `src/lib/paymentStatus.ts` for
+  the exact logic and how to tune it.
+- **Batches** are free text on the backend (no separate collection), so the
+  "Batches" tab under Sports management is a local suggestion list only,
+  clearly labeled as such in the UI.
+- **Edit Payment** now edits the real `PaymentTransaction` record (or
+  records the first one if none exists yet) with a full audit trail
+  (`editedBy` / `editedAt` / `editHistory`) stored on the backend.
+
+## Not yet load-tested against production data
+
+This was built and type/build-checked in a sandbox with no network path to
+your MongoDB Atlas cluster or Render deployment, so I could not personally
+click through every CRUD path against live data before handing this off.
+Please run through each module once against the real backend before
+considering this fully verified -- the "Testing checklist" section below
+is exactly what to click through.
+
+## Testing checklist
+
+- [ ] Login with real credentials
+- [ ] Dashboard loads today's bookings and needs-attention list
+- [ ] Approve / reject / delete a booking, confirm WhatsApp link opens
+- [ ] Add / edit / delete a player
+- [ ] Record a payment, edit it (PIN), confirm audit trail appears in View
+- [ ] Send an individual and a bulk WhatsApp reminder
+- [ ] Edit a sport's monthly fee
+- [ ] Create / edit / publish / delete an announcement
+- [ ] Save each Settings tab (PIN required) and change the PIN itself
+- [ ] Export PDF and Excel from Reports
