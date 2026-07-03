@@ -41,6 +41,32 @@ at all (e.g. triggered straight from your backend when a booking is
 approved), that requires the WhatsApp Business API through a provider like
 Meta Cloud API, Gupshup, or Twilio, which has setup and per-message cost.
 
+## Admin PIN and critical actions
+
+`src/hooks/usePinGate.tsx` provides one global `requestPin(onSuccess)` used
+everywhere a critical action needs authentication: deleting a player,
+editing a payment, saving any Settings section, and changing the PIN
+itself. Default PIN is `0000`, stored in `settings.adminPin` in
+`useAppData` and changeable from Settings -> Security. This is in-memory
+only (matches the rest of the mock state) -- wire it to your real backend
+auth when you connect the API.
+
+## New modules added
+
+- **Player profile** (`features/players/PlayerProfileSheet.tsx`) - tapping
+  a player row (not the delete icon) opens a full profile with photo
+  placeholder, membership type, join date, attendance, and Edit/Delete
+  actions. Delete is PIN-gated and then asks for confirmation.
+- **Payments View/Edit** (`features/payments/PaymentViewSheet.tsx`,
+  `PaymentEditSheet.tsx`) - View is open to everyone; Edit is PIN-gated
+  and lets the admin change status (including the new "Partially paid"
+  state), amount paid, balance, payment date, and notes.
+- **Sports management, Reports, Announcements, Settings, Profile** - all
+  live under `features/<module>` and are reachable from the More menu.
+  Reports' Export Excel downloads a CSV (opens fine in Excel); Export PDF
+  uses the browser's print-to-PDF via `window.print()` to avoid pulling in
+  a heavy PDF library for a v1.
+
 ## Adding future modules (Attendance, QR check-in, Coach/Staff mgmt, etc.)
 
 Add a new folder under `src/features`, a route in `App.tsx`, and a list
